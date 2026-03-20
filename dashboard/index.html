@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Health Reminder Dashboard</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">Health Reminder Analytics</p>
+        <h1>你的健康提醒与专注轨迹</h1>
+        <p class="hero-copy">把提醒记录转换成一个可读、可筛选、可复盘的看板，重点看时间分布、标签聚类和最近状态变化。</p>
+      </div>
+      <div class="hero-actions">
+        <button id="refreshButton" class="primary-button" type="button">刷新页面</button>
+        <div class="generated-at" id="generatedAt"></div>
+      </div>
+    </header>
+
+    <main class="dashboard-grid">
+      <section class="panel panel-span-2 metrics-panel">
+        <div class="section-heading">
+          <span>概览</span>
+          <h2>核心指标</h2>
+        </div>
+        <div class="metric-grid" id="metricGrid"></div>
+      </section>
+
+      <section class="panel insights-panel">
+        <div class="section-heading">
+          <span>智能分析</span>
+          <h2>行动建议</h2>
+        </div>
+        <div class="insight-list" id="insightList"></div>
+      </section>
+
+      <section class="panel panel-span-2">
+        <div class="section-heading">
+          <span>时间分布</span>
+          <h2>每日推进趋势</h2>
+        </div>
+        <div class="chart timeline-chart" id="timelineChart"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <span>高频时段</span>
+          <h2>24 小时热力图</h2>
+        </div>
+        <div class="heatmap" id="hourHeatmap"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <span>标签聚类</span>
+          <h2>主题标签表现</h2>
+        </div>
+        <div class="topic-cloud" id="topicCloud"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <span>周期观察</span>
+          <h2>星期分布</h2>
+        </div>
+        <div class="weekday-chart" id="weekdayChart"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <span>提醒配置</span>
+          <h2>任务结构</h2>
+        </div>
+        <div class="task-list" id="taskList"></div>
+      </section>
+
+      <section class="panel panel-span-2">
+        <div class="section-heading">
+          <span>明细筛选</span>
+          <h2>日志浏览器</h2>
+        </div>
+        <div class="filters">
+          <label>
+            <span>状态</span>
+            <select id="statusFilter">
+              <option value="all">全部状态</option>
+            </select>
+          </label>
+          <label>
+            <span>主题</span>
+            <select id="topicFilter">
+              <option value="all">全部主题</option>
+            </select>
+          </label>
+          <label>
+            <span>日期</span>
+            <input id="dateFilter" type="date">
+          </label>
+        </div>
+        <div class="entry-list" id="entryList"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
