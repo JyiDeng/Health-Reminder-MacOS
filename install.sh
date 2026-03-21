@@ -66,7 +66,7 @@ echo ""
 
 # 添加执行权限
 echo "🔧 设置脚本执行权限..."
-chmod +x "$SCRIPT_DIR/reminder_health.sh" "$SCRIPT_DIR/view_work_log.sh" "$SCRIPT_DIR/open_dashboard.sh" "$SCRIPT_DIR/restart.sh"
+chmod +x "$SCRIPT_DIR/reminder_health.sh" "$SCRIPT_DIR/view_work_log.sh" "$SCRIPT_DIR/open_dashboard.sh"
 
 if [ ! -f "$SCRIPT_DIR/reminder_tasks.conf" ]; then
     echo "❌ 缺少配置文件：$SCRIPT_DIR/reminder_tasks.conf"

@@ -21,6 +21,13 @@ TASK_CHOICES=()
 KEYBOARD_MOOD_KEY="a"
 CONFIG_MTIME=""
 
+cleanup_stale_locks() {
+    [ -d "$LOCK_DIR" ] || return
+
+    # If previous runs exited during a dialog, lock dirs can remain and block tasks forever.
+    find "$LOCK_DIR" -mindepth 1 -maxdepth 1 -type d -name '*.lock' -exec rmdir {} + 2>/dev/null || true
+}
+
 get_file_mtime() {
     local target="$1"
     stat -f "%m" "$target" 2>/dev/null || echo ""
@@ -472,6 +479,8 @@ reload_and_restart() {
         sleep 1
     fi
 
+    cleanup_stale_locks
+
     exec /bin/bash "$0"
 }
 
@@ -480,6 +489,7 @@ main() {
 
     load_config
     mkdir -p "$LOCK_DIR"
+    cleanup_stale_locks
     print_startup_info
 
     for i in "${!TASK_NAMES[@]}"; do
