@@ -97,6 +97,13 @@ h1 {
   align-items: flex-end;
 }
 
+.hero-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 .primary-button {
   border: none;
   border-radius: 999px;
@@ -105,6 +112,16 @@ h1 {
   color: #fffdf9;
   background: linear-gradient(135deg, #154b53, var(--focus));
   box-shadow: 0 20px 45px rgba(15, 118, 110, 0.28);
+  cursor: pointer;
+}
+
+.ghost-button {
+  border: 1px solid rgba(86, 56, 35, 0.16);
+  border-radius: 999px;
+  padding: 14px 22px;
+  font: 600 14px var(--font-display);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.72);
   cursor: pointer;
 }
 
@@ -151,7 +168,7 @@ h1 {
 
 .metric-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -390,6 +407,7 @@ h1 {
   .heatmap {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
 }
 
 @media (max-width: 720px) {
@@ -425,4 +443,5 @@ h1 {
   .heatmap {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
 }

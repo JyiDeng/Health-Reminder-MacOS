@@ -9,7 +9,10 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="$SCRIPT_DIR/reminder_tasks.conf"
 LOG_FILE="$SCRIPT_DIR/work_status_log.txt"
+WATER_LOG_FILE="$SCRIPT_DIR/water_intake_log.txt"
+TOILET_LOG_FILE="$SCRIPT_DIR/toilet_log.txt"
 LOCK_DIR="$SCRIPT_DIR/.task_locks"
+WATER_DAILY_GOAL=8
 
 TASK_NAMES=()
 TASK_TYPES=()
@@ -194,6 +197,46 @@ append_log_entry() {
     fi
 }
 
+append_water_intake_entry() {
+    local timestamp
+
+    timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    echo "$timestamp" >> "$WATER_LOG_FILE"
+}
+
+append_toilet_entry() {
+    local timestamp
+
+    timestamp=$(date "+%Y-%m-%d %H:%M:%S")
+    echo "$timestamp" >> "$TOILET_LOG_FILE"
+}
+
+count_today_water_intake() {
+    local today count
+
+    [ -f "$WATER_LOG_FILE" ] || {
+        echo 0
+        return
+    }
+
+    today=$(date "+%Y-%m-%d")
+    count=$(grep -c "^$today " "$WATER_LOG_FILE" 2>/dev/null || true)
+    echo "${count:-0}"
+}
+
+count_today_toilet_visits() {
+    local today count
+
+    [ -f "$TOILET_LOG_FILE" ] || {
+        echo 0
+        return
+    }
+
+    today=$(date "+%Y-%m-%d")
+    count=$(grep -c "^$today " "$TOILET_LOG_FILE" 2>/dev/null || true)
+    echo "${count:-0}"
+}
+
 show_notification() {
     local title="$1"
     local message="$2"
@@ -273,6 +316,58 @@ EOF
     show_notification "记录完成" "工作状态已记录到日志"
 }
 
+run_hydration_task() {
+    local task_name="$1"
+    local title="$2"
+    local prompt="$3"
+    local water_count remaining_count result
+
+    can_present_ui || return
+
+    water_count=$(count_today_water_intake)
+    remaining_count=$((WATER_DAILY_GOAL - water_count))
+    if [ "$remaining_count" -lt 0 ]; then
+        remaining_count=0
+    fi
+
+    result=$(osascript <<EOF
+set dialogResult to display dialog "$(escape_applescript_string "$prompt")\n\n今日补水进度：$water_count/$WATER_DAILY_GOAL 杯\n还需补水：$remaining_count 杯" with title "$(escape_applescript_string "$title")" buttons {"稍后提醒", "喝了再按"} default button "喝了再按"
+return button returned of dialogResult
+EOF
+) 2>/dev/null
+
+    if [ "$result" = "喝了再按" ]; then
+        append_water_intake_entry
+        water_count=$(count_today_water_intake)
+        remaining_count=$((WATER_DAILY_GOAL - water_count))
+        if [ "$remaining_count" -lt 0 ]; then
+            remaining_count=0
+        fi
+        show_notification "补水已记录" "今天已记录 $water_count/$WATER_DAILY_GOAL 杯，还需 $remaining_count 杯"
+    fi
+}
+
+run_toilet_task() {
+    local title="$1"
+    local prompt="$2"
+    local toilet_count result
+
+    can_present_ui || return
+
+    toilet_count=$(count_today_toilet_visits)
+    result=$(osascript <<EOF
+set dialogResult to display dialog "$(escape_applescript_string "$prompt")\n\n今日如厕已记录：$toilet_count 次" with title "$(escape_applescript_string "$title")" buttons {"稍后提醒", "已上厕所"} default button "已上厕所"
+return button returned of dialogResult
+EOF
+) 2>/dev/null
+
+    if [ "$result" = "已上厕所" ]; then
+        append_toilet_entry
+        toilet_count=$(count_today_toilet_visits)
+        show_notification "如厕已记录" "今天已记录如厕 $toilet_count 次"
+    fi
+}
+
 run_info_task() {
     local title="$1"
     local prompt="$2"
@@ -335,6 +430,12 @@ run_task_loop() {
             work_check)
                 run_work_check_task "$title" "$prompt" "$choices_raw"
                 ;;
+            hydration)
+                run_hydration_task "$task_name" "$title" "$prompt"
+                ;;
+            toilet)
+                run_toilet_task "$title" "$prompt"
+                ;;
             info)
                 run_info_task "$title" "$prompt"
                 ;;
@@ -364,6 +465,7 @@ load_config() {
     TASK_TITLES=()
     TASK_PROMPTS=()
     TASK_CHOICES=()
+    WATER_DAILY_GOAL=0
 
     while IFS= read -r line || [ -n "$line" ]; do
         line_no=$((line_no + 1))
@@ -401,11 +503,19 @@ load_config() {
         TASK_TITLES+=("$title")
         TASK_PROMPTS+=("${prompt//\\n/$'\n'}")
         TASK_CHOICES+=("${choices:-}")
+
+        if [ "$type" = "hydration" ]; then
+            WATER_DAILY_GOAL=$((WATER_DAILY_GOAL + 1))
+        fi
     done < "$CONFIG_FILE"
 
     if [ ${#TASK_NAMES[@]} -eq 0 ]; then
         echo "错误：配置文件中没有可用任务" >&2
         exit 1
+    fi
+
+    if [ "$WATER_DAILY_GOAL" -eq 0 ]; then
+        WATER_DAILY_GOAL=8
     fi
 
     CONFIG_MTIME=$(get_file_mtime "$CONFIG_FILE")

@@ -6,19 +6,21 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAUNCH_AGENT_DIR="$HOME/Library/LaunchAgents"
-LAUNCH_AGENT_LABEL="com.$(id -un).health-reminder"
-LAUNCH_AGENT_PLIST="$LAUNCH_AGENT_DIR/$LAUNCH_AGENT_LABEL.plist"
+REMINDER_AGENT_LABEL="com.jyimac.health-reminder"
+REMINDER_AGENT_PLIST="$LAUNCH_AGENT_DIR/$REMINDER_AGENT_LABEL.plist"
+DASHBOARD_AGENT_LABEL="com.jyimac.health-dashboard"
+DASHBOARD_AGENT_PLIST="$LAUNCH_AGENT_DIR/$DASHBOARD_AGENT_LABEL.plist"
 
-create_launch_agent_plist() {
+create_reminder_launch_agent_plist() {
     mkdir -p "$LAUNCH_AGENT_DIR"
 
-    cat > "$LAUNCH_AGENT_PLIST" <<EOF
+    cat > "$REMINDER_AGENT_PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>$LAUNCH_AGENT_LABEL</string>
+    <string>$REMINDER_AGENT_LABEL</string>
 
     <key>ProgramArguments</key>
     <array>
@@ -45,10 +47,48 @@ create_launch_agent_plist() {
 EOF
 }
 
+create_dashboard_launch_agent_plist() {
+    mkdir -p "$LAUNCH_AGENT_DIR"
+
+    cat > "$DASHBOARD_AGENT_PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>$DASHBOARD_AGENT_LABEL</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>$SCRIPT_DIR/scripts/dashboard_server.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>$SCRIPT_DIR</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>$SCRIPT_DIR/dashboard_server_stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>$SCRIPT_DIR/dashboard_server_stderr.log</string>
+</dict>
+</plist>
+EOF
+}
+
 load_launch_agent() {
-    launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_PLIST" >/dev/null 2>&1 || true
-    launchctl bootstrap "gui/$(id -u)" "$LAUNCH_AGENT_PLIST"
-    launchctl enable "gui/$(id -u)/$LAUNCH_AGENT_LABEL"
+    local label="$1"
+    local plist="$2"
+    launchctl bootout "gui/$(id -u)" "$plist" >/dev/null 2>&1 || true
+    launchctl bootstrap "gui/$(id -u)" "$plist"
+    launchctl enable "gui/$(id -u)/$label"
 }
 
 echo "🏥 macOS健康提醒系统安装程序"
@@ -74,8 +114,10 @@ if [ ! -f "$SCRIPT_DIR/reminder_tasks.conf" ]; then
 fi
 
 echo "🚀 配置开机自启动（LaunchAgent）..."
-create_launch_agent_plist
-load_launch_agent
+create_reminder_launch_agent_plist
+create_dashboard_launch_agent_plist
+load_launch_agent "$REMINDER_AGENT_LABEL" "$REMINDER_AGENT_PLIST"
+load_launch_agent "$DASHBOARD_AGENT_LABEL" "$DASHBOARD_AGENT_PLIST"
 
 echo ""
 echo "🎉 安装完成！"
@@ -92,11 +134,16 @@ echo "  - 手动运行时可按 'a' 键记录心情，LaunchAgent模式不支持
 echo "  - 首次运行时macOS可能会询问辅助功能权限，请允许访问"
 echo ""
 echo "🔐 LaunchAgent信息："
-echo "  - Label:      $LAUNCH_AGENT_LABEL"
-echo "  - Plist路径:  $LAUNCH_AGENT_PLIST"
+echo "  - Reminder Label:      $REMINDER_AGENT_LABEL"
+echo "  - Reminder Plist路径:  $REMINDER_AGENT_PLIST"
 echo "  - 标准输出:   $SCRIPT_DIR/launchd_stdout.log"
 echo "  - 错误输出:   $SCRIPT_DIR/launchd_stderr.log"
+echo "  - Dashboard Label:      $DASHBOARD_AGENT_LABEL"
+echo "  - Dashboard Plist路径:  $DASHBOARD_AGENT_PLIST"
+echo "  - Dashboard标准输出:   $SCRIPT_DIR/dashboard_server_stdout.log"
+echo "  - Dashboard错误输出:   $SCRIPT_DIR/dashboard_server_stderr.log"
 echo ""
 echo "🧹 如需移除开机自启动："
-echo "  launchctl bootout gui/$(id -u) $LAUNCH_AGENT_PLIST"
-echo "  rm -f $LAUNCH_AGENT_PLIST"
+echo "  launchctl bootout gui/$(id -u) $REMINDER_AGENT_PLIST"
+echo "  launchctl bootout gui/$(id -u) $DASHBOARD_AGENT_PLIST"
+echo "  rm -f $REMINDER_AGENT_PLIST $DASHBOARD_AGENT_PLIST"

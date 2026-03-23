@@ -8,6 +8,7 @@ const data = window.__DASHBOARD_DATA__ || {
   topics: [],
   tasks: [],
   insights: [],
+  health: {},
 };
 
 function qs(selector) {
@@ -22,12 +23,17 @@ function createElement(tag, className, text) {
 }
 
 function renderMetrics() {
+  const waterGoal = data.summary.waterGoal ?? 8;
   const metrics = [
     ["总记录", data.summary.totalEntries ?? 0, "累计捕捉到的日志条数"],
     ["今日记录", data.summary.todayCount ?? 0, "今天已经形成的样本量"],
     ["专注率", `${data.summary.focusRate ?? 0}%`, "只统计推进/偏航两类"],
     ["偏航率", `${data.summary.driftRate ?? 0}%`, "越低越稳定"],
     ["连续天数", data.summary.currentStreak ?? 0, "最近连续有记录的天数"],
+    ["今日喝水", `${data.summary.todayWater ?? 0}/${waterGoal} 杯`, `还需 ${data.summary.todayWaterRemaining ?? 0} 杯`],
+    ["今日如厕", `${data.summary.todayToilet ?? 0} 次`, "点击上方按钮可手动记录"],
+    ["近7天喝水日均", `${data.summary.weekWaterAverage ?? 0} 杯`, "按最近 7 天统计"],
+    ["近7天如厕日均", `${data.summary.weekToiletAverage ?? 0} 次`, "按最近 7 天统计"],
   ];
 
   const container = qs("#metricGrid");
@@ -207,6 +213,51 @@ function bindRefresh() {
   });
 }
 
+function bindRebuild() {
+  const button = qs("#rebuildButton");
+  if (!button) return;
+
+  button.addEventListener("click", async () => {
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "重建中...";
+
+    try {
+      const response = await fetch("/api/rebuild", { method: "POST" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      window.location.reload();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+      alert("重建失败，请确认你是通过 open_dashboard.sh 打开的看板。");
+    }
+  });
+}
+
+function bindHealthLogger(buttonId, endpoint, pendingLabel) {
+  const button = qs(buttonId);
+  if (!button) return;
+
+  button.addEventListener("click", async () => {
+    const originalLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = pendingLabel;
+    try {
+      const response = await fetch(endpoint, { method: "POST" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      window.location.reload();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+      alert("记录失败，请确认看板服务已通过 open_dashboard.sh 启动。");
+    }
+  });
+}
+
 function renderGeneratedAt() {
   if (!data.generatedAt) return;
   const date = new Date(data.generatedAt);
@@ -225,6 +276,9 @@ function init() {
   populateFilters();
   renderEntries();
   bindRefresh();
+  bindRebuild();
+  bindHealthLogger("#logToiletButton", "/api/log/toilet", "记录中...");
+  bindHealthLogger("#logWaterButton", "/api/log/water", "记录中...");
 }
 
 init();

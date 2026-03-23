@@ -11,11 +11,16 @@
     <header class="hero">
       <div>
         <p class="eyebrow">Health Reminder Analytics</p>
-        <h1>你的健康提醒与专注轨迹</h1>
+        <h1>健康提醒与专注轨迹</h1>
         <p class="hero-copy">把提醒记录转换成一个可读、可筛选、可复盘的看板，重点看时间分布、标签聚类和最近状态变化。</p>
       </div>
       <div class="hero-actions">
-        <button id="refreshButton" class="primary-button" type="button">刷新页面</button>
+        <div class="hero-button-row">
+          <button id="logWaterButton" class="ghost-button" type="button">记录喝水</button>
+          <button id="logToiletButton" class="ghost-button" type="button">记录上厕所</button>
+          <button id="rebuildButton" class="primary-button" type="button">重建统计数据</button>
+          <button id="refreshButton" class="ghost-button" type="button">刷新页面</button>
+        </div>
         <div class="generated-at" id="generatedAt"></div>
       </div>
     </header>

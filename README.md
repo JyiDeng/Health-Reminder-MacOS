@@ -59,6 +59,8 @@ cd Health-Reminder-MacOS
 ./restart.sh
 ```
 
+看板通过本地 `http://127.0.0.1:8766` 打开，页面内支持“重建统计数据”“记录喝水”“记录上厕所”按钮。
+
 ## 配置说明
 
 所有提醒任务定义在 `reminder_tasks.conf`：
@@ -70,7 +72,7 @@ name|type|schedule|title|prompt|choices(optional)
 字段说明：
 
 1. `name`：任务名称（用于终端展示）
-2. `type`：任务类型，支持 `work_check` 和 `info`
+2. `type`：任务类型，支持 `work_check`、`hydration`、`toilet`、`info`
 3. `schedule`：调度表达式
 4. `title`：弹窗标题
 5. `prompt`：弹窗内容（支持 `\n` 换行）
@@ -85,7 +87,8 @@ name|type|schedule|title|prompt|choices(optional)
 
 ```text
 stretch|info|1800|拉伸提醒|到时间啦，起来拉伸一下！|
-morning-water|info|cron:0 7 * * *|喝水提醒|早上空腹喝一杯水！|
+morning-water|hydration|cron:0 7 * * *|喝水提醒|早上空腹喝一杯水！|
+bathroom|toilet|5400|生理需求提醒|起来活动并上厕所。|
 focus-check|work_check|1500|专注检查|你现在的状态如何？|继续专注;偏离任务
 ```
 

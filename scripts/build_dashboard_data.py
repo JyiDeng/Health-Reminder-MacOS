@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 import json
-import math
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent.parent
 LOG_FILE = ROOT / "work_status_log.txt"
 CONFIG_FILE = ROOT / "reminder_tasks.conf"
+WATER_LOG_FILE = ROOT / "water_intake_log.txt"
+TOILET_LOG_FILE = ROOT / "toilet_log.txt"
 OUTPUT_FILE = ROOT / "dashboard" / "data.js"
 
 LINE_RE = re.compile(
@@ -120,6 +121,11 @@ def parse_log_entries() -> list[dict]:
 
 
 def classify_task(title: str, prompt: str, task_type: str) -> str:
+    if task_type == "hydration":
+        return "hydration"
+    if task_type == "toilet":
+        return "break"
+
     text = f"{title} {prompt}"
     for category, keywords in TASK_CATEGORY_RULES:
         if any(keyword in text for keyword in keywords):
@@ -164,13 +170,99 @@ def percent(part: int, total: int) -> float:
     return round(part * 100 / total, 1)
 
 
-def build_summary(entries: list[dict]) -> dict:
+def parse_timestamp_lines(path: Path) -> list[datetime]:
+    if not path.exists():
+        return []
+
+    timestamps = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        try:
+            timestamps.append(datetime.strptime(line, "%Y-%m-%d %H:%M:%S"))
+        except ValueError:
+            continue
+
+    timestamps.sort()
+    return timestamps
+
+
+def build_health_stats(tasks: list[dict]) -> dict:
+    water_events = parse_timestamp_lines(WATER_LOG_FILE)
+    toilet_events = parse_timestamp_lines(TOILET_LOG_FILE)
+    today = datetime.now().date()
+
+    daily = defaultdict(lambda: {"water": 0, "toilet": 0})
+    for event in water_events:
+        daily[event.strftime("%Y-%m-%d")]["water"] += 1
+    for event in toilet_events:
+        daily[event.strftime("%Y-%m-%d")]["toilet"] += 1
+
+    water_goal = sum(1 for task in tasks if task["type"] == "hydration")
+    if water_goal == 0:
+        water_goal = 8
+
+    today_key = today.strftime("%Y-%m-%d")
+    today_water = daily[today_key]["water"]
+    today_toilet = daily[today_key]["toilet"]
+
+    last_7_days = []
+    for day_offset in range(6, -1, -1):
+        day = today - timedelta(days=day_offset)
+        key = day.strftime("%Y-%m-%d")
+        last_7_days.append(
+            {
+                "date": key,
+                "water": daily[key]["water"],
+                "toilet": daily[key]["toilet"],
+            }
+        )
+
+    water_7_total = sum(item["water"] for item in last_7_days)
+    toilet_7_total = sum(item["toilet"] for item in last_7_days)
+
+    available_dates = sorted(daily.keys())
+    if available_dates:
+        water_active_avg = round(sum(daily[day]["water"] for day in available_dates) / len(available_dates), 2)
+        toilet_active_avg = round(sum(daily[day]["toilet"] for day in available_dates) / len(available_dates), 2)
+    else:
+        water_active_avg = 0.0
+        toilet_active_avg = 0.0
+
+    return {
+        "waterDailyGoal": water_goal,
+        "today": {
+            "date": today_key,
+            "water": today_water,
+            "toilet": today_toilet,
+            "waterRemaining": max(water_goal - today_water, 0),
+        },
+        "last7Days": last_7_days,
+        "weekSummary": {
+            "waterTotal": water_7_total,
+            "toiletTotal": toilet_7_total,
+            "waterAverage": round(water_7_total / 7, 2),
+            "toiletAverage": round(toilet_7_total / 7, 2),
+        },
+        "overallAveragePerActiveDay": {
+            "water": water_active_avg,
+            "toilet": toilet_active_avg,
+        },
+        "byDate": {day: daily[day] for day in available_dates},
+    }
+
+
+def build_summary(entries: list[dict], health: dict) -> dict:
     total = len(entries)
     today = datetime.now().strftime("%Y-%m-%d")
     today_entries = [entry for entry in entries if entry["date"] == today]
     focus_count = sum(1 for entry in entries if entry["kind"] == "focus")
     drift_count = sum(1 for entry in entries if entry["kind"] == "drift")
     mood_count = sum(1 for entry in entries if entry["kind"] == "mood")
+
+    week_summary = health.get("weekSummary", {})
+    today_health = health.get("today", {})
 
     return {
         "totalEntries": total,
@@ -179,6 +271,12 @@ def build_summary(entries: list[dict]) -> dict:
         "moodCount": mood_count,
         "todayCount": len(today_entries),
         "currentStreak": calculate_streak(entries),
+        "todayWater": today_health.get("water", 0),
+        "todayToilet": today_health.get("toilet", 0),
+        "todayWaterRemaining": today_health.get("waterRemaining", 0),
+        "waterGoal": health.get("waterDailyGoal", 8),
+        "weekWaterAverage": week_summary.get("waterAverage", 0),
+        "weekToiletAverage": week_summary.get("toiletAverage", 0),
     }
 
 
@@ -307,10 +405,11 @@ def build_data() -> dict:
     tasks = parse_tasks()
     hourly = build_hourly_breakdown(entries)
     topics = build_topic_stats(entries)
+    health = build_health_stats(tasks)
 
     return {
         "generatedAt": datetime.now().isoformat(),
-        "summary": build_summary(entries),
+        "summary": build_summary(entries, health),
         "entries": list(reversed(entries)),
         "timeline": build_timeline(entries),
         "hourly": hourly,
@@ -318,6 +417,7 @@ def build_data() -> dict:
         "topics": topics,
         "tasks": tasks,
         "insights": build_insights(entries, hourly, topics),
+        "health": health,
     }
 
 
