@@ -4,7 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Health Reminder Dashboard</title>
-  <link rel="stylesheet" href="./styles.css">
+  <script>
+    (function loadDashboardStyles() {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = `./styles.css?ts=${Date.now()}`;
+      document.head.appendChild(link);
+    })();
+  </script>
 </head>
 <body>
   <div class="page-shell">
@@ -48,6 +55,26 @@
           <h2>每日推进趋势</h2>
         </div>
         <div class="chart timeline-chart" id="timelineChart"></div>
+      </section>
+
+      <section class="panel panel-span-2">
+        <div class="section-heading">
+          <span>按日复盘</span>
+          <h2>按小时状态柱状图</h2>
+        </div>
+        <div class="filters">
+          <label>
+            <span>选择日期</span>
+            <select id="dailyHourDateFilter"></select>
+          </label>
+        </div>
+        <div class="hourly-legend">
+          <span class="legend-item"><i class="legend-swatch focus"></i>绿色：正常</span>
+          <span class="legend-item"><i class="legend-swatch drift"></i>红色：偏航</span>
+        </div>
+        <div class="hourly-bar-chart-wrap">
+          <div class="hourly-bar-chart" id="hourlyBarChart"></div>
+        </div>
       </section>
 
       <section class="panel">
@@ -110,7 +137,18 @@
     </main>
   </div>
 
-  <script src="./data.js"></script>
-  <script src="./app.js"></script>
+  <script>
+    (function loadDashboardScripts() {
+      const ts = Date.now();
+      const dataScript = document.createElement("script");
+      dataScript.src = `./data.js?ts=${ts}`;
+      dataScript.onload = function () {
+        const appScript = document.createElement("script");
+        appScript.src = `./app.js?ts=${ts}`;
+        document.body.appendChild(appScript);
+      };
+      document.body.appendChild(dataScript);
+    })();
+  </script>
 </body>
 </html>

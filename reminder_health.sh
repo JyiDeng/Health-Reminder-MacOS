@@ -11,6 +11,7 @@ CONFIG_FILE="$SCRIPT_DIR/reminder_tasks.conf"
 LOG_FILE="$SCRIPT_DIR/work_status_log.txt"
 WATER_LOG_FILE="$SCRIPT_DIR/water_intake_log.txt"
 TOILET_LOG_FILE="$SCRIPT_DIR/toilet_log.txt"
+SLEEPY_STATS_LOG_FILE="$SCRIPT_DIR/sleepy_stats_log.tsv"
 LOCK_DIR="$SCRIPT_DIR/.task_locks"
 WATER_DAILY_GOAL=8
 
@@ -211,6 +212,23 @@ append_toilet_entry() {
     echo "$timestamp" >> "$TOILET_LOG_FILE"
 }
 
+init_sleepy_stats_log() {
+    [ -f "$SLEEPY_STATS_LOG_FILE" ] && return
+
+    printf '%s\n' "Date\tTime Slot\tSleep Duration (h)\tSleep Time Deviation (min)\tSleep Quality (1-5)\tBreakfast Carb Type (Refined/Complex/Low)\tLunch Carb Level (Low/Med/High)\tHigh GI (0/1)\tCaffeine Intake (mg)\tWater Intake (Low/Normal/High)\tTask Type (Mechanical/Logical/Creative/Social)\tTask Intensity (1-5)\tTime Since Lunch (min)\tStress Level (1-5)\tMood (1-5)\tSleepiness Score (1-5)" > "$SLEEPY_STATS_LOG_FILE"
+}
+
+append_sleepy_stats_entry() {
+    local now_date now_slot
+
+    now_date=$(date "+%m%d")
+    now_slot=$(date "+%H%M")
+
+    # 按要求使用默认中间档位；时间字段使用弹出时刻。
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+        "$now_date" "$now_slot" "450" "60" "3" "Complex" "Med" "0" "0" "Normal" "Logical" "3" "30" "3" "3" "3" >> "$SLEEPY_STATS_LOG_FILE"
+}
+
 count_today_water_intake() {
     local today count
 
@@ -379,6 +397,18 @@ display dialog "$(escape_applescript_string "$prompt")" with title "$(escape_app
 EOF
 }
 
+run_sleepy_stats_task() {
+    local title="$1"
+    local prompt="$2"
+
+    can_present_ui || return
+
+    init_sleepy_stats_log
+    append_sleepy_stats_entry
+
+    show_notification "$title" "$prompt"
+}
+
 run_task_loop() {
     local task_name="$1"
     local type="$2"
@@ -438,6 +468,9 @@ run_task_loop() {
                 ;;
             info)
                 run_info_task "$title" "$prompt"
+                ;;
+            sleepy_stats)
+                run_sleepy_stats_task "$title" "$prompt"
                 ;;
             *)
                 echo "警告：未知任务类型 '$type'，已跳过" >&2

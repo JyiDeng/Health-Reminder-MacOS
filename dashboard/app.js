@@ -32,7 +32,7 @@ function renderMetrics() {
     ["连续天数", data.summary.currentStreak ?? 0, "最近连续有记录的天数"],
     ["今日喝水", `${data.summary.todayWater ?? 0}/${waterGoal} 杯`, `还需 ${data.summary.todayWaterRemaining ?? 0} 杯`],
     ["今日如厕", `${data.summary.todayToilet ?? 0} 次`, "点击上方按钮可手动记录"],
-    ["近7天喝水日均", `${data.summary.weekWaterAverage ?? 0} 杯`, "按最近 7 天统计"],
+    ["近7天喝水日均", `${data.summary.weekWaterAverage*8 ?? 0} 杯`, "按最近 7 天统计"],
     ["近7天如厕日均", `${data.summary.weekToiletAverage ?? 0} 次`, "按最近 7 天统计"],
   ];
 
@@ -81,6 +81,132 @@ function renderTimeline() {
   points.forEach((item) => {
     container.append(makeBarRow(item.date.slice(5), item.focus, item.drift, item.mood, item.total));
   });
+}
+
+function getUniqueDates() {
+  const entryDates = data.entries.map((entry) => entry.date).filter(Boolean);
+  const timelineDates = (data.timeline || []).map((item) => item.date).filter(Boolean);
+  return [...new Set([...entryDates, ...timelineDates])].sort((a, b) => b.localeCompare(a));
+}
+
+function aggregateDateByHour(date) {
+  const buckets = Array.from({ length: 24 }, (_, hour) => ({
+    hour,
+    focus: 0,
+    drift: 0,
+    total: 0,
+  }));
+
+  data.entries.forEach((entry) => {
+    if (entry.date !== date) return;
+    const bucket = buckets[entry.hour];
+    if (!bucket) return;
+    if (entry.kind === "focus") bucket.focus += 1;
+    if (entry.kind === "drift") bucket.drift += 1;
+    bucket.total = bucket.focus + bucket.drift;
+  });
+
+  return buckets;
+}
+
+function renderHourlyBarChart() {
+  const container = qs("#hourlyBarChart");
+  const dateSelect = qs("#dailyHourDateFilter");
+  if (!container || !dateSelect) return;
+
+  container.innerHTML = "";
+
+  const selectedDate = dateSelect.value;
+  if (!selectedDate) {
+    container.append(createElement("div", "muted-empty", "暂无可用日期。"));
+    return;
+  }
+
+  const buckets = aggregateDateByHour(selectedDate);
+  const max = Math.max(...buckets.map((item) => item.total), 1);
+  const selectedDateTotal = buckets.reduce((sum, item) => sum + item.total, 0);
+  if (selectedDateTotal === 0) {
+    container.append(createElement("div", "muted-empty", `日期 ${selectedDate} 没有可用记录。`));
+    return;
+  }
+
+  const groups = [
+    { label: "第 1 行：00:00 - 11:00", items: buckets.slice(0, 12) },
+    { label: "第 2 行：12:00 - 23:00", items: buckets.slice(12, 24) },
+  ];
+
+  groups.forEach((group) => {
+    const row = createElement("div", "hourly-row");
+    const rowTitle = createElement("div", "hourly-row-title", group.label);
+    const rowGrid = createElement("div", "hourly-row-grid");
+
+    group.items.forEach((item) => {
+      const bar = createElement("article", "hourly-col");
+      const stack = createElement("div", "hourly-stack");
+      const focus = createElement("div", "hourly-segment focus");
+      const drift = createElement("div", "hourly-segment drift");
+      const focusHeight = (item.focus / max) * 100;
+      const driftHeight = (item.drift / max) * 100;
+      focus.style.height = `${focusHeight}%`;
+      drift.style.height = `${driftHeight}%`;
+      stack.append(focus, drift);
+
+      const hour = createElement("span", "hourly-hour", `${String(item.hour).padStart(2, "0")}:00`);
+      const total = createElement("span", "hourly-total", `${item.total}`);
+      const detail = createElement("span", "hourly-detail", `绿 ${item.focus} / 红 ${item.drift}`);
+      bar.append(stack, hour, total, detail);
+      rowGrid.append(bar);
+    });
+
+    row.append(rowTitle, rowGrid);
+    container.append(row);
+  });
+}
+
+function syncHourlyDateFilterFromEntryFilter() {
+  const dateFilter = qs("#dateFilter");
+  const dateSelect = qs("#dailyHourDateFilter");
+  if (!dateFilter || !dateSelect || !dateFilter.value) return;
+  const hasOption = [...dateSelect.options].some((option) => option.value === dateFilter.value);
+  if (!hasOption) return;
+  dateSelect.value = dateFilter.value;
+  renderHourlyBarChart();
+}
+
+function populateHourlyDateFilter() {
+  const dateSelect = qs("#dailyHourDateFilter");
+  if (!dateSelect) return;
+
+  const dates = getUniqueDates();
+  dateSelect.innerHTML = "";
+
+  if (!dates.length) {
+    const empty = createElement("option", "", "暂无数据");
+    empty.value = "";
+    dateSelect.append(empty);
+    renderHourlyBarChart();
+    return;
+  }
+
+  dates.forEach((date) => {
+    const option = createElement("option", "", date);
+    option.value = date;
+    dateSelect.append(option);
+  });
+
+  const dateFilter = qs("#dateFilter");
+  const preferredDate = dateFilter?.value;
+  dateSelect.value = dates.includes(preferredDate) ? preferredDate : dates[0];
+
+  dateSelect.addEventListener("change", () => {
+    if (dateFilter) {
+      dateFilter.value = dateSelect.value;
+      renderEntries();
+    }
+    renderHourlyBarChart();
+  });
+
+  renderHourlyBarChart();
 }
 
 function renderHeatmap() {
@@ -188,6 +314,7 @@ function renderEntries() {
 function populateFilters() {
   const statusSelect = qs("#statusFilter");
   const topicSelect = qs("#topicFilter");
+  const dateFilter = qs("#dateFilter");
 
   [...new Set(data.entries.map((entry) => entry.status))].forEach((status) => {
     const option = createElement("option", "", status);
@@ -203,7 +330,10 @@ function populateFilters() {
 
   statusSelect.addEventListener("change", renderEntries);
   topicSelect.addEventListener("change", renderEntries);
-  qs("#dateFilter").addEventListener("change", renderEntries);
+  dateFilter.addEventListener("change", () => {
+    renderEntries();
+    syncHourlyDateFilterFromEntryFilter();
+  });
 }
 
 function bindRefresh() {
@@ -264,21 +394,30 @@ function renderGeneratedAt() {
   qs("#generatedAt").textContent = `数据更新时间：${date.toLocaleString("zh-CN")} · 新日志生成后重新运行 open_dashboard.sh`;
 }
 
+function safeRun(label, fn) {
+  try {
+    fn();
+  } catch (error) {
+    console.error(`[dashboard] ${label} 渲染失败`, error);
+  }
+}
+
 function init() {
-  renderGeneratedAt();
-  renderMetrics();
-  renderInsights();
-  renderTimeline();
-  renderHeatmap();
-  renderTopics();
-  renderWeekdays();
-  renderTasks();
-  populateFilters();
-  renderEntries();
-  bindRefresh();
-  bindRebuild();
-  bindHealthLogger("#logToiletButton", "/api/log/toilet", "记录中...");
-  bindHealthLogger("#logWaterButton", "/api/log/water", "记录中...");
+  safeRun("generatedAt", renderGeneratedAt);
+  safeRun("metrics", renderMetrics);
+  safeRun("insights", renderInsights);
+  safeRun("timeline", renderTimeline);
+  safeRun("heatmap", renderHeatmap);
+  safeRun("topics", renderTopics);
+  safeRun("weekdays", renderWeekdays);
+  safeRun("tasks", renderTasks);
+  safeRun("filters", populateFilters);
+  safeRun("hourlyDateFilter", populateHourlyDateFilter);
+  safeRun("entries", renderEntries);
+  safeRun("refreshBind", bindRefresh);
+  safeRun("rebuildBind", bindRebuild);
+  safeRun("toiletBind", () => bindHealthLogger("#logToiletButton", "/api/log/toilet", "记录中..."));
+  safeRun("waterBind", () => bindHealthLogger("#logWaterButton", "/api/log/water", "记录中..."));
 }
 
 init();

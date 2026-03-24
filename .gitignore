@@ -1,3 +1,6 @@
 work_status_log.txt
 *.log
 restart.sh
+*_log.txt
+*_log.tsv
+data.js

@@ -63,8 +63,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_response(200 if payload.get("ok") else 500)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(body)
+
+    def end_headers(self):
+        # Always disable caching so local dashboard updates are visible immediately.
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
 
     def do_GET(self):
         parsed = urlparse(self.path)
